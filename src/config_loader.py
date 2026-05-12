@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
 from functools import lru_cache
+from typing import Optional, List
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -11,17 +12,17 @@ class BudgetConfig(BaseModel):
 
 
 class SearchConfig(BaseModel):
-    queries: list[str]
+    queries: List[str]
     budget: BudgetConfig = BudgetConfig()
-    experience_level: list[str] = []
+    experience_level: List[str] = []
     jobs_per_session: int = 5
 
 
 class FreelancerConfig(BaseModel):
     name: str
     bio: str
-    skills: list[str]
-    portfolio_highlights: list[str] = []
+    skills: List[str]
+    portfolio_highlights: List[str] = []
     tone: str = "professional"
     max_proposal_words: int = 300
 
@@ -34,7 +35,7 @@ class GoogleSheetsConfig(BaseModel):
 
 class SchedulerConfig(BaseModel):
     sessions_per_day: int = 3
-    run_times: list[str]
+    run_times: List[str]
     random_offset_minutes: int = 20
 
 
@@ -63,7 +64,7 @@ class Settings(BaseSettings):
     upwork_email: str
     upwork_password: str
 
-    app: AppConfig = None
+    app: Optional[AppConfig] = None
 
     def model_post_init(self, __context):
         config_path = Path(__file__).parent.parent / "config" / "config.yaml"
