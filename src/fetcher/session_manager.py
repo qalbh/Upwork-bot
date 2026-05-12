@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from playwright.async_api import async_playwright, BrowserContext, Page
 from src.config_loader import get_settings
@@ -37,12 +38,23 @@ class SessionManager:
                 "--no-first-run",
                 "--no-default-browser-check",
             ],
-            storage_state=str(SESSION_FILE) if SESSION_FILE.exists() else None,
             viewport={"width": 1280, "height": 800},
             locale="en-US",
         )
 
         await self._context.add_init_script(STEALTH_SCRIPT)
+
+        # Load saved cookies manually (storage_state param not supported here)
+        if SESSION_FILE.exists():
+            with open(SESSION_FILE) as f:
+                state = json.load(f)
+            cookies = state.get("cookies", [])
+            if cookies:
+                await self._context.add_cookies(cookies)
+            log.info("session_loaded", cookies=len(cookies))
+        else:
+            log.info("no_session", message="Manual login required on first run")
+
         log.info("browser_started")
         return self._context
 
