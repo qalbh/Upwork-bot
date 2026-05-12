@@ -65,22 +65,25 @@ class SessionManager:
         log.info("login_start")
         settings = self.settings
 
-        await page.goto(settings.app.upwork.homepage)
-        await random_delay(3, 6)
+        # Go directly to login page — more reliable than clicking a nav link
+        await page.goto("https://www.upwork.com/ab/account-security/login", wait_until="domcontentloaded")
+        await random_delay(3, 5)
 
-        await page.click('a[href*="login"]')
+        # Step 1 — enter email and click Continue
+        await page.wait_for_selector("#login_username", timeout=15000)
+        await type_like_human(page, "#login_username", settings.upwork_email)
+        await short_delay()
+        await page.click("#login_password_continue")
         await random_delay(2, 4)
 
-        await type_like_human(page, 'input[name="login[username]"]', settings.upwork_email)
+        # Step 2 — enter password and click Login
+        await page.wait_for_selector("#login_password", timeout=15000)
+        await type_like_human(page, "#login_password", settings.upwork_password)
         await short_delay()
-        await page.keyboard.press("Enter")
-        await random_delay(2, 4)
+        await page.click("#login_control_continue")
 
-        await type_like_human(page, 'input[name="login[password]"]', settings.upwork_password)
-        await short_delay()
-        await page.keyboard.press("Enter")
-
-        await page.wait_for_url("**/nx/find-work**", timeout=30000)
+        # Wait for successful redirect to find work page
+        await page.wait_for_url("**/nx/find-work**", timeout=60000)
         await self.save_state()
         log.info("login_success")
 
