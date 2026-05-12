@@ -18,17 +18,26 @@ class SessionManager:
     async def start(self) -> BrowserContext:
         self._playwright = await async_playwright().start()
 
-        profile_path = self.settings.app.upwork.chrome_profile_path
+        # chrome_profile_path is e.g. ".../Chrome/Profile 5"
+        # user_data_dir must be the parent Chrome folder e.g. ".../Chrome"
+        # The profile name "Profile 5" is passed as --profile-directory argument
+        full_profile_path = Path(self.settings.app.upwork.chrome_profile_path)
+        user_data_dir = str(full_profile_path.parent)   # .../Google/Chrome
+        profile_dir = full_profile_path.name             # Profile 5
+
         self._context = await self._playwright.chromium.launch_persistent_context(
-            user_data_dir=profile_path,
+            user_data_dir=user_data_dir,
             channel="chrome",
             headless=False,
-            args=["--disable-blink-features=AutomationControlled"],
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                f"--profile-directory={profile_dir}",
+            ],
             viewport={"width": 1280, "height": 800},
             locale="en-US",
         )
 
-        log.info("browser_started", profile=profile_path)
+        log.info("browser_started", user_data_dir=user_data_dir, profile=profile_dir)
         return self._context
 
     async def login_if_needed(self, page: Page):
