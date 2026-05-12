@@ -1,6 +1,7 @@
 import asyncio
 import random
 import re
+from typing import Optional, List, Tuple
 from bs4 import BeautifulSoup
 from playwright.async_api import Page
 from src.config_loader import get_settings, SearchConfig
@@ -117,7 +118,7 @@ class PlaywrightFetcher:
 
         return selected
 
-    async def _fetch_job_detail(self, page: Page, url: str) -> Job | None:
+    async def _fetch_job_detail(self, page: Page, url: str) -> Optional[Job]:
         log.info("fetching_job", url=url)
         await page.goto(url, wait_until="domcontentloaded")
         await random_delay(4, 8)
@@ -165,7 +166,7 @@ class PlaywrightFetcher:
             description=description,
         )
 
-    def _extract_job_id(self, url: str) -> str | None:
+    def _extract_job_id(self, url: str) -> Optional[str]:
         match = re.search(r"~([a-zA-Z0-9]+)", url)
         if match:
             return match.group(1)
@@ -182,7 +183,7 @@ class PlaywrightFetcher:
                 return text[:300]
         return ""
 
-    def _extract_budget(self, soup: BeautifulSoup) -> tuple[str, str]:
+    def _extract_budget(self, soup: BeautifulSoup) -> Tuple[str, str]:
         text = self._text(soup, [
             "[data-test='budget']",
             "[class*='budget']",
@@ -202,7 +203,7 @@ class PlaywrightFetcher:
                 skills.append(t)
         return skills[:15]
 
-    def _extract_rating(self, soup: BeautifulSoup) -> float | None:
+    def _extract_rating(self, soup: BeautifulSoup) -> Optional[float]:
         el = soup.select_one("[class*='rating'] , [data-test*='rating']")
         if el:
             try:
@@ -211,7 +212,7 @@ class PlaywrightFetcher:
                 pass
         return None
 
-    def _extract_hires(self, soup: BeautifulSoup) -> int | None:
+    def _extract_hires(self, soup: BeautifulSoup) -> Optional[int]:
         el = soup.select_one("[data-test*='hire'] , [class*='hire']")
         if el:
             match = re.search(r"\d+", el.get_text())

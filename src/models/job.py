@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional, List
 from pydantic import BaseModel
 
 
@@ -11,12 +11,12 @@ class Job(BaseModel):
     budget_amount: str = ""
     duration: str = ""
     experience_level: str = ""
-    skills: list[str] = []
+    skills: List[str] = []
     client_location: str = ""
-    client_rating: float | None = None
-    client_hire_count: int | None = None
+    client_rating: Optional[float] = None
+    client_hire_count: Optional[int] = None
     description: str = ""
-    found_at: datetime = None
+    found_at: Optional[datetime] = None
 
     def model_post_init(self, __context):
         if self.found_at is None:
