@@ -43,6 +43,7 @@ class UpworkConfig(BaseModel):
     homepage: str = "https://www.upwork.com"
     min_delay_seconds: float = 5
     max_delay_seconds: float = 15
+    chrome_profile_path: str = ""
 
 
 class AppConfig(BaseModel):

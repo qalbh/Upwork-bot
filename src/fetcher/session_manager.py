@@ -1,119 +1,104 @@
 import asyncio
 from pathlib import Path
-from playwright.async_api import async_playwright, Browser, BrowserContext, Page
+from playwright.async_api import async_playwright, BrowserContext, Page
 from src.config_loader import get_settings
-from src.utils.human_behavior import random_delay, short_delay, type_like_human
+from src.utils.human_behavior import random_delay, short_delay
 from src.utils.logger import get_logger
 
 log = get_logger()
 
-STATE_PATH = Path(__file__).parent.parent.parent / "data" / "browser_state.json"
 
 
 class SessionManager:
     def __init__(self):
         self.settings = get_settings()
         self._playwright = None
-        self._browser: Browser = None
         self._context: BrowserContext = None
 
     async def start(self) -> BrowserContext:
         self._playwright = await async_playwright().start()
 
-        launch_args = {
-            "headless": False,
-            "channel": "chrome",
-            "args": [
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-            ],
-        }
+        profile_path = self.settings.app.upwork.chrome_profile_path
+        self._context = await self._playwright.chromium.launch_persistent_context(
+            user_data_dir=profile_path,
+            channel="chrome",
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled"],
+            viewport={"width": 1280, "height": 800},
+            locale="en-US",
+        )
 
-        self._browser = await self._playwright.chromium.launch(**launch_args)
-
-        context_args = {
-            "viewport": {"width": 1280, "height": 800},
-            "locale": "en-US",
-            "timezone_id": "America/New_York",
-            "user_agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/124.0.0.0 Safari/537.36"
-            ),
-        }
-
-        if STATE_PATH.exists():
-            context_args["storage_state"] = str(STATE_PATH)
-            log.info("session_restored", path=str(STATE_PATH))
-        else:
-            log.info("session_fresh", reason="no saved state found")
-
-        self._context = await self._browser.new_context(**context_args)
-
-        await self._context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
-            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-        """)
-
+        log.info("browser_started", profile=profile_path)
         return self._context
 
     async def login_if_needed(self, page: Page):
-        if STATE_PATH.exists():
+        settings = self.settings
+
+        # Check if already logged in
+        await page.goto("https://www.upwork.com", wait_until="domcontentloaded")
+        await random_delay(2, 4)
+
+        if await self._is_logged_in(page):
+            log.info("already_logged_in")
             return
 
         log.info("login_start")
-        settings = self.settings
-
         await page.goto("https://www.upwork.com/ab/account-security/login", wait_until="domcontentloaded")
-        await random_delay(3, 5)
+        await random_delay(2, 4)
 
-        # Step 1 — Cloudflare may appear here. Wait up to 2 min for email field.
-        log.info("waiting_for_email_field", message="Click Cloudflare checkbox in browser if it appears")
+        # Step 1 — email field (Cloudflare may appear first — click manually)
+        log.info("waiting_for_email_field", message="Click Cloudflare checkbox if it appears")
         await page.wait_for_selector("#login_username", state="visible", timeout=120000)
-        log.info("email_field_visible")
+        log.info("email_field_ready")
 
-        await type_like_human(page, "#login_username", settings.upwork_email)
+        await page.fill("#login_username", settings.upwork_email)
+        await short_delay()
+        await page.keyboard.press("Tab")
         await short_delay()
         await page.click("#login_password_continue")
         await random_delay(2, 4)
 
-        # Step 2 — Cloudflare may appear AGAIN after email. Wait up to 2 min for password field.
-        # The password field selector is input[name="password"] — confirmed from Upwork's DOM.
-        # Using state="attached" because Upwork hides it via CSS during transition.
-        log.info("waiting_for_password_field", message="Click Cloudflare checkbox in browser if it appears again")
-        await page.wait_for_selector("input[name='password']", state="attached", timeout=120000)
-        await random_delay(1, 2)  # Wait for CSS transition to complete
-        log.info("password_field_visible")
+        # Step 2 — password field (Cloudflare may appear again — click manually)
+        log.info("waiting_for_password_field", message="Click Cloudflare checkbox if it appears again")
 
-        await page.fill("input[name='password']", settings.upwork_password)
+        # Wait for password field to exist in DOM (it's hidden via CSS transition)
+        await page.wait_for_selector("input[type='password']", state="attached", timeout=120000)
+        await random_delay(2, 3)  # Let the CSS transition finish
+
+        # Use JavaScript to fill — bypasses Playwright's visibility requirement
+        await page.evaluate("""
+            const input = document.querySelector("input[type='password']");
+            if (input) {
+                input.removeAttribute('disabled');
+                input.style.display = 'block';
+                input.style.visibility = 'visible';
+                input.style.opacity = '1';
+            }
+        """)
         await short_delay()
 
-        # Click the submit button — try multiple selectors
-        for selector in ["button[type='submit']", "#login_control_continue", "button[data-qa='btn-submit']"]:
-            try:
-                btn = await page.wait_for_selector(selector, state="visible", timeout=3000)
-                if btn:
-                    await btn.click()
-                    break
-            except Exception:
-                continue
+        await page.fill("input[type='password']", settings.upwork_password)
+        await short_delay()
+        await page.keyboard.press("Enter")
 
-        # Wait for redirect to dashboard
-        log.info("waiting_for_dashboard", message="Waiting for Upwork dashboard to load...")
+        # Wait for dashboard
+        log.info("waiting_for_dashboard")
         await page.wait_for_url("**/nx/find-work**", timeout=60000)
-        await self.save_state()
         log.info("login_success")
 
-    async def save_state(self):
-        STATE_PATH.parent.mkdir(exist_ok=True)
-        await self._context.storage_state(path=str(STATE_PATH))
-        log.info("session_saved", path=str(STATE_PATH))
+    async def _is_logged_in(self, page: Page) -> bool:
+        try:
+            # If we can find the "Find Work" nav element, we're logged in
+            await page.wait_for_selector(
+                "[data-test='nav-find-work'], a[href*='find-work'], #nav-find-work",
+                timeout=5000
+            )
+            return True
+        except Exception:
+            return False
 
     async def stop(self):
         if self._context:
             await self._context.close()
-        if self._browser:
-            await self._browser.close()
         if self._playwright:
             await self._playwright.stop()

@@ -63,3 +63,4 @@ upwork:
   homepage: "https://www.upwork.com"
   min_delay_seconds: 5
   max_delay_seconds: 15
+  chrome_profile_path: "/Users/zoofeeqalb/Library/Application Support/Google/Chrome/Profile 5"
