@@ -3,8 +3,8 @@ import random
 import re
 from typing import Optional, List, Tuple
 from bs4 import BeautifulSoup
-from playwright.async_api import Page
-from src.config_loader import get_settings, SearchConfig
+from playwright.async_api import Page, BrowserContext
+from src.config_loader import get_settings
 from src.fetcher.session_manager import SessionManager
 from src.models.job import Job
 from src.utils.human_behavior import (
@@ -24,21 +24,32 @@ class PlaywrightFetcher:
     def __init__(self):
         self.settings = get_settings()
         self.session = SessionManager()
+        self._context: Optional[BrowserContext] = None
+        self._page: Optional[Page] = None
 
-    async def fetch_jobs(self, query: str) -> list[Job]:
-        context = await self.session.start()
-        page = await context.new_page()
+    async def start(self):
+        """Start browser once and log in. Call before the query loop."""
+        self._context = await self.session.start()
+        self._page = await self._context.new_page()
+        await self.session.login_if_needed(self._page)
+        log.info("fetcher_ready")
+
+    async def stop(self):
+        """Close browser after all queries are done."""
+        await self.session.stop()
+        self._context = None
+        self._page = None
+
+    async def fetch_jobs(self, query: str) -> List[Job]:
         jobs = []
-
         try:
-            await self.session.login_if_needed(page)
-            await self._navigate_to_search(page, query)
-            job_links = await self._collect_job_links(page)
+            await self._navigate_to_search(self._page, query)
+            job_links = await self._collect_job_links(self._page)
             log.info("job_links_found", query=query, count=len(job_links))
 
             for url in job_links:
                 try:
-                    job = await self._fetch_job_detail(page, url)
+                    job = await self._fetch_job_detail(self._page, url)
                     if job:
                         jobs.append(job)
                     await random_delay(
@@ -50,9 +61,7 @@ class PlaywrightFetcher:
                     continue
 
         except Exception as e:
-            log.error("fetch_session_failed", query=query, error=str(e))
-        finally:
-            await self.session.stop()
+            log.error("fetch_query_failed", query=query, error=str(e))
 
         return jobs
 
@@ -92,7 +101,7 @@ class PlaywrightFetcher:
         await scroll_naturally(page)
         log.info("search_loaded", query=query)
 
-    async def _collect_job_links(self, page: Page) -> list[str]:
+    async def _collect_job_links(self, page: Page) -> List[str]:
         await idle_scroll(page)
 
         html = await page.content()
@@ -111,12 +120,10 @@ class PlaywrightFetcher:
                 links.append(href)
 
         max_jobs = self.settings.app.search.jobs_per_session
-        selected = links[:max_jobs]
+        if len(links) > max_jobs:
+            links = random.sample(links, max_jobs)
 
-        if len(selected) < len(links):
-            selected = random.sample(links, min(max_jobs, len(links)))
-
-        return selected
+        return links
 
     async def _fetch_job_detail(self, page: Page, url: str) -> Optional[Job]:
         log.info("fetching_job", url=url)
@@ -132,11 +139,7 @@ class PlaywrightFetcher:
         if not job_id:
             return None
 
-        title = self._text(soup, [
-            "h1[class*='title']",
-            "h1",
-        ])
-
+        title = self._text(soup, ["h1[class*='title']", "h1"])
         description = self._text(soup, [
             "[data-test='description']",
             ".job-description",
@@ -173,14 +176,12 @@ class PlaywrightFetcher:
         match = re.search(r"/jobs/([^/?]+)", url)
         return match.group(1) if match else None
 
-    def _text(self, soup: BeautifulSoup, selectors: list[str], long: bool = False) -> str:
+    def _text(self, soup: BeautifulSoup, selectors: List[str], long: bool = False) -> str:
         for selector in selectors:
             el = soup.select_one(selector)
             if el:
                 text = el.get_text(separator=" ", strip=True)
-                if long:
-                    return text[:2000]
-                return text[:300]
+                return text[:2000] if long else text[:300]
         return ""
 
     def _extract_budget(self, soup: BeautifulSoup) -> Tuple[str, str]:
@@ -195,16 +196,16 @@ class PlaywrightFetcher:
             return "fixed", text
         return "unknown", text
 
-    def _extract_skills(self, soup: BeautifulSoup) -> list[str]:
+    def _extract_skills(self, soup: BeautifulSoup) -> List[str]:
         skills = []
-        for el in soup.select("[data-test='skill'] , [class*='skill'] span"):
+        for el in soup.select("[data-test='skill'], [class*='skill'] span"):
             t = el.get_text(strip=True)
             if t and t not in skills:
                 skills.append(t)
         return skills[:15]
 
     def _extract_rating(self, soup: BeautifulSoup) -> Optional[float]:
-        el = soup.select_one("[class*='rating'] , [data-test*='rating']")
+        el = soup.select_one("[class*='rating'], [data-test*='rating']")
         if el:
             try:
                 return float(el.get_text(strip=True).split()[0])
@@ -213,7 +214,7 @@ class PlaywrightFetcher:
         return None
 
     def _extract_hires(self, soup: BeautifulSoup) -> Optional[int]:
-        el = soup.select_one("[data-test*='hire'] , [class*='hire']")
+        el = soup.select_one("[data-test*='hire'], [class*='hire']")
         if el:
             match = re.search(r"\d+", el.get_text())
             if match:

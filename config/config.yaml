@@ -1,8 +1,6 @@
 search:
   queries:
     - "Google Slides"
-    - "Powerpoint Design"
-    - "pitch deck"
   budget:
     min_fixed: 100
     min_hourly: 20

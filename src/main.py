@@ -20,27 +20,34 @@ async def run_pipeline():
     await dedup.init()
     total_written = 0
 
-    for query in settings.app.search.queries:
-        log.info("pipeline_start", query=query)
-        jobs = await fetcher.fetch_jobs(query)
+    # Open browser once — login once — run all queries — close browser
+    await fetcher.start()
 
-        for job in jobs:
-            try:
-                if await dedup.is_seen(job.job_id):
-                    log.info("job_skipped_duplicate", job_id=job.job_id)
+    try:
+        for query in settings.app.search.queries:
+            log.info("pipeline_start", query=query)
+            jobs = await fetcher.fetch_jobs(query)
+
+            for job in jobs:
+                try:
+                    if await dedup.is_seen(job.job_id):
+                        log.info("job_skipped_duplicate", job_id=job.job_id)
+                        continue
+
+                    proposal = await generator.generate(job)
+                    row = writer.append_row(job, proposal)
+                    await dedup.mark_seen(job.job_id, row)
+                    total_written += 1
+
+                    log.info("job_processed", job_id=job.job_id, title=job.title, row=row)
+                    await asyncio.sleep(1)
+
+                except Exception as e:
+                    log.error("job_failed", job_id=job.job_id, error=str(e))
                     continue
 
-                proposal = await generator.generate(job)
-                row = writer.append_row(job, proposal)
-                await dedup.mark_seen(job.job_id, row)
-                total_written += 1
-
-                log.info("job_processed", job_id=job.job_id, title=job.title, row=row)
-                await asyncio.sleep(1)
-
-            except Exception as e:
-                log.error("job_failed", job_id=job.job_id, error=str(e))
-                continue
+    finally:
+        await fetcher.stop()
 
     seen_count = await dedup.count()
     log.info("pipeline_done", jobs_written=total_written, total_seen=seen_count)
@@ -57,8 +64,6 @@ def main():
         scheduler = build_scheduler(run_pipeline)
         scheduler.start()
         log.info("scheduler_started", sessions_per_day=settings.app.scheduler.sessions_per_day)
-
-        # Run once immediately on start
         loop.run_until_complete(run_pipeline())
         loop.run_forever()
     else:
