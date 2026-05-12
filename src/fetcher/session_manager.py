@@ -69,8 +69,11 @@ class SessionManager:
         await page.goto("https://www.upwork.com/ab/account-security/login", wait_until="domcontentloaded")
         await random_delay(3, 5)
 
-        # Step 1 — enter email and click Continue
-        await page.wait_for_selector("#login_username", timeout=15000)
+        # Handle Cloudflare challenge — wait for user to click "Verify you are human"
+        # if it appears. Give 120 seconds for manual interaction.
+        log.info("cloudflare_check", message="If a Cloudflare checkbox appears, click it manually in the browser window")
+        await page.wait_for_selector("#login_username", timeout=120000)
+        log.info("login_form_visible")
         await type_like_human(page, "#login_username", settings.upwork_email)
         await short_delay()
         await page.click("#login_password_continue")
