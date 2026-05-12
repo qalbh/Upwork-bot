@@ -25,6 +25,12 @@ class SessionManager:
         user_data_dir = str(full_profile_path.parent)   # .../Google/Chrome
         profile_dir = full_profile_path.name             # Profile 5
 
+        # Remove SingletonLock if Chrome crashed or wasn't fully closed
+        lock_file = full_profile_path.parent / "SingletonLock"
+        if lock_file.exists():
+            lock_file.unlink()
+            log.info("singleton_lock_removed")
+
         self._context = await self._playwright.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             channel="chrome",
