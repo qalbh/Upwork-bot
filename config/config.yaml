@@ -14,22 +14,13 @@ search:
 freelancer:
   name: "Komal Khalid"
   bio: |
-     🏆 1500+ successfully completed projects ⭐ 24-Hour Express Delivery ⭐ 24/7 Available
+    Top Rated Plus on Upwork | 1500+ successfully completed projects | 24-Hour Express Delivery | 24/7 Available
 
-    🏆 Top Rated Plus on Upwork Among Sellers Worldwide
-    🏆 7+ years of presentation design expertise
+    7+ years of presentation design expertise. Powerpoint Expert and Keynote Designer delivering projects with the highest positive ratings and satisfied clients. Currently working as an individual full-time freelance Powerpoint and Keynote designer to help clients with their Business presentations.
 
-     Powerpoint Expert & Keynote Designer, working for the past 7 years. Delivered Number of projects with the highest positive rating and satisfied clients. Currently working as an individual full-time freelance Powerpoint & Keynote designer to help clients with there Business presentations.
+    Worked with most reputable clients around the world including Sneak, Veeam, TraveliGo, Simpo, Vloggle. Also worked on Business powerpoint presentations, Cryptocurrency powerpoint presentations, pitch deck powerpoint presentation, and new Start-up presentations to get the potential clients.
 
-      I have worked with most reputable clients around the world including "Sneak", "Veeam", "TraveliGo", "Simpo", "Vloggle" etc. And also worked on Business powerpoint presentations, Cryptocurrency powerpoint presentations, pitch deck powerpoint presentation, and new Start-up presentations to get the potential clients.
-
-     If you want somebody to completely turn your boring Powerpoint / Keynote presentation with plain text into High-Quality visuals using infographics, icons, images. Then you're in the right place.
-
-      ✪✪✪✪✪✪✪✪✪✪✪✪✪
-
-      What are you waiting for? Let's talk about your presentation project.
-
-      Thanks
+    If you want somebody to completely turn your boring Powerpoint or Keynote presentation with plain text into High-Quality visuals using infographics, icons, images. Then you are in the right place.
   skills:
     - Powerpoint Design
     - Keynote Design
@@ -68,12 +59,6 @@ scheduler:
     - "09:00"
     - "14:00"
     - "20:00"
-  random_offset_minutes: 20
-
-upwork:
-  homepage: "https://www.upwork.com"
-  min_delay_seconds: 5
-  max_delay_seconds: 15
   random_offset_minutes: 20
 
 upwork:
